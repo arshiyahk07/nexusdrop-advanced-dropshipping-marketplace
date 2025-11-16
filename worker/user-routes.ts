@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import type { Env } from './core-utils';
 import { ProductEntity, CategoryEntity, UserEntity, StoredUser, OrderEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-import type { User, Order, CartItem } from "@shared/types";
+import type { User, Order, CartItem, Product } from "@shared/types";
 // A simple, insecure session management for demo purposes.
 // In a real app, use signed JWTs.
 const sessions = new Map<string, string>(); // token -> user email
@@ -46,11 +46,12 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       name,
       email,
       passwordHash: password, // In a real app, HASH the password
+      role: email.includes('vendor') ? 'vendor' : 'buyer', // Simple role assignment for demo
     };
     await UserEntity.create(c.env, newUser);
     const token = crypto.randomUUID();
     sessions.set(token, userKey);
-    const userResponse: User = { id: newUser.id, name: newUser.name, email: newUser.email };
+    const userResponse: User = { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role };
     return ok(c, { user: userResponse, token });
   });
   app.post('/api/auth/login', async (c) => {
@@ -70,7 +71,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     }
     const token = crypto.randomUUID();
     sessions.set(token, userKey);
-    const userResponse: User = { id: storedUser.id, name: storedUser.name, email: storedUser.email };
+    const userResponse: User = { id: storedUser.id, name: storedUser.name, email: storedUser.email, role: storedUser.role };
     return ok(c, { user: userResponse, token });
   });
   app.get('/api/auth/me', async (c) => {
@@ -88,19 +89,19 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       return c.json({ success: false, error: 'User not found' }, 404);
     }
     const storedUser = await userEntity.getState();
-    const userResponse: User = { id: storedUser.id, name: storedUser.name, email: storedUser.email };
+    const userResponse: User = { id: storedUser.id, name: storedUser.name, email: storedUser.email, role: storedUser.role };
     return ok(c, { user: userResponse });
   });
-  // ORDERS
-  const getUserFromToken = async (env: Env, token: string | undefined): Promise<User | null> => {
+  // USER HELPERS
+  const getUserFromToken = async (env: Env, token: string | undefined): Promise<StoredUser | null> => {
     if (!token) return null;
     const userKey = sessions.get(token);
     if (!userKey) return null;
     const userEntity = new UserEntity(env, userKey);
     if (!await userEntity.exists()) return null;
-    const { id, name, email } = await userEntity.getState();
-    return { id, name, email };
+    return await userEntity.getState();
   };
+  // ORDERS
   app.post('/api/orders', async (c) => {
     const authHeader = c.req.header('Authorization');
     const token = authHeader?.split(' ')[1];
@@ -134,5 +135,87 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const { items: allOrders } = await OrderEntity.list(c.env);
     const userOrders = allOrders.filter(order => order.userId === user.id).sort((a, b) => b.createdAt - a.createdAt);
     return ok(c, userOrders);
+  });
+  // VENDOR ROUTES
+  app.get('/api/vendor/products', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user || user.role !== 'vendor') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { items: allProducts } = await ProductEntity.list(c.env);
+    const vendorProducts = allProducts.filter(p => p.vendorId === user.id);
+    return ok(c, vendorProducts);
+  });
+  app.post('/api/vendor/products', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user || user.role !== 'vendor') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const productData = await c.req.json<Omit<Product, 'id' | 'vendorId'>>();
+    const newProduct: Product = {
+      ...productData,
+      id: crypto.randomUUID(),
+      vendorId: user.id,
+    };
+    const createdProduct = await ProductEntity.create(c.env, newProduct);
+    return ok(c, createdProduct);
+  });
+  app.put('/api/vendor/products/:id', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user || user.role !== 'vendor') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { id } = c.req.param();
+    const productEntity = new ProductEntity(c.env, id);
+    if (!await productEntity.exists()) {
+      return notFound(c, 'Product not found');
+    }
+    const product = await productEntity.getState();
+    if (product.vendorId !== user.id) {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const updatedData = await c.req.json<Partial<Product>>();
+    await productEntity.patch({ ...updatedData, id, vendorId: user.id });
+    return ok(c, await productEntity.getState());
+  });
+  app.delete('/api/vendor/products/:id', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user || user.role !== 'vendor') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { id } = c.req.param();
+    const productEntity = new ProductEntity(c.env, id);
+    if (!await productEntity.exists()) {
+      return notFound(c, 'Product not found');
+    }
+    const product = await productEntity.getState();
+    if (product.vendorId !== user.id) {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    await ProductEntity.delete(c.env, id);
+    return ok(c, { success: true });
+  });
+  app.get('/api/vendor/orders', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user || user.role !== 'vendor') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { items: allProducts } = await ProductEntity.list(c.env);
+    const vendorProductIds = new Set(allProducts.filter(p => p.vendorId === user.id).map(p => p.id));
+    const { items: allOrders } = await OrderEntity.list(c.env);
+    const vendorOrders = allOrders.filter(order =>
+      order.items.some(item => vendorProductIds.has(item.productId))
+    ).sort((a, b) => b.createdAt - a.createdAt);
+    return ok(c, vendorOrders);
   });
 }

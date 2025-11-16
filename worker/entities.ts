@@ -29,7 +29,7 @@ export type StoredUser = User & {passwordHash: string;};
 export class UserEntity extends IndexedEntity<StoredUser> {
   static readonly entityName = "user";
   static readonly indexName = "users";
-  static readonly initialState: StoredUser = { id: "", name: "", email: "", passwordHash: "" };
+  static readonly initialState: StoredUser = { id: "", name: "", email: "", passwordHash: "", role: 'buyer' };
   static override keyOf(state: { email: string }): string {
     return state.email.toLowerCase();
   }

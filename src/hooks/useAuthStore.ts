@@ -34,14 +34,19 @@ export const useAuthStore = create<AuthState>()(
         setUser: (user) =>
           set((state) => {
             state.user = user;
-            state.isAuthenticated = true;
+            state.isAuthenticated = !!user;
           }),
       },
     })),
     {
       name: 'nexusdrop-auth-storage',
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({ token: state.token }),
+      partialize: (state) => ({ token: state.token, user: state.user }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.isAuthenticated = !!state.token && !!state.user;
+        }
+      }
     }
   )
 );

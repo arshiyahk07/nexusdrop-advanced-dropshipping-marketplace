@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useForm, useFieldArray, SubmitHandler } from 'react-hook-form';
+import { useForm, useFieldArray } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -15,25 +15,19 @@ import { toast } from 'sonner';
 import type { Product } from '@shared/types';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 const variantSchema = z.object({
-  id: z.string().uuid().optional(),
+  id: z.string().optional(),
   name: z.string().min(1, 'Variant name is required'),
   value: z.string().min(1, 'Variant value is required'),
   sku: z.string().min(1, 'SKU is required'),
-  priceModifier: z.preprocess(
-    (val) => (val === '' ? 0 : val),
-    z.coerce.number({ invalid_type_error: 'Must be a number' }).default(0)
-  ),
-  stock: z.preprocess(
-    (val) => (val === '' ? 0 : val),
-    z.coerce.number({ invalid_type_error: 'Must be a number' }).min(0, 'Stock cannot be negative')
-  ),
+  priceModifier: z.coerce.number().default(0),
+  stock: z.coerce.number().min(0, 'Stock cannot be negative'),
 });
 const productSchema = z.object({
   name: z.string().min(3, 'Product name is required'),
   description: z.string().min(10, 'Description is required'),
-  price: z.coerce.number({ invalid_type_error: 'Price must be a number' }).min(0.01, 'Price must be positive'),
+  price: z.coerce.number().min(0.01, 'Price must be positive'),
   category: z.string().min(1, 'Category is required'),
-  images: z.array(z.object({ value: z.string().url("Must be a valid URL") })).min(1, 'At least one image URL is required'),
+  images: z.array(z.string().url()).min(1, 'At least one image URL is required'),
   tags: z.array(z.string()).optional(),
   variants: z.array(variantSchema).min(1, 'At least one variant is required'),
 });
@@ -48,16 +42,11 @@ export default function VendorProductFormPage() {
   const { register, handleSubmit, control, reset, formState: { errors } } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      name: '',
-      description: '',
-      price: 0,
-      category: '',
-      images: [{ value: '' }],
+      images: [''],
       variants: [{ name: 'Size', value: 'One Size', sku: '', priceModifier: 0, stock: 0 }],
-      tags: [],
     },
   });
-  const { fields: variantFields, append: appendVariant, remove: removeVariant } = useFieldArray({ control, name: 'variants' });
+  const { fields, append, remove } = useFieldArray({ control, name: 'variants' });
   const { fields: imageFields, append: appendImage, remove: removeImage } = useFieldArray({ control, name: 'images' });
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'vendor') {
@@ -67,12 +56,7 @@ export default function VendorProductFormPage() {
       const fetchProduct = async () => {
         try {
           const product = await api<Product>(`/api/products/${productId}`);
-          const formValues: ProductFormValues = {
-            ...product,
-            images: product.images.map(url => ({ value: url })),
-            tags: product.tags || [],
-          };
-          reset(formValues);
+          reset(product);
         } catch (error) {
           toast.error('Failed to fetch product details.');
           navigate('/vendor/dashboard');
@@ -83,26 +67,21 @@ export default function VendorProductFormPage() {
       fetchProduct();
     }
   }, [isAuthenticated, user, navigate, isEditMode, productId, reset]);
-  const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
+  const onSubmit = async (data: ProductFormValues) => {
     setIsLoading(true);
     try {
-      const apiPayload = {
-        ...data,
-        images: data.images.map(img => img.value),
-        rating: 0, // Default value for new/updated product
-        reviewCount: 0, // Default value
-      };
+      const payload = { ...data, rating: 0, reviewCount: 0 };
       if (isEditMode) {
         await api<Product>(`/api/vendor/products/${productId}`, {
           method: 'PUT',
-          body: JSON.stringify(apiPayload),
+          body: JSON.stringify(payload),
           headers: { Authorization: `Bearer ${token}` },
         });
         toast.success('Product updated successfully!');
       } else {
         await api<Product>('/api/vendor/products', {
           method: 'POST',
-          body: JSON.stringify(apiPayload),
+          body: JSON.stringify(payload),
           headers: { Authorization: `Bearer ${token}` },
         });
         toast.success('Product created successfully!');
@@ -138,20 +117,20 @@ export default function VendorProductFormPage() {
             <CardContent className="space-y-4">
               {imageFields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
-                  <Input {...register(`images.${index}.value` as const)} placeholder="https://example.com/image.png" />
+                  <Input {...register(`images.${index}`)} placeholder="https://example.com/image.png" />
                   <Button type="button" variant="ghost" size="icon" onClick={() => removeImage(index)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
               {errors.images && <p className="text-sm text-red-500 mt-1">{errors.images.message || errors.images.root?.message}</p>}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendImage({ value: '' })}><PlusCircle className="mr-2 h-4 w-4" />Add Image URL</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => appendImage('')}><PlusCircle className="mr-2 h-4 w-4" />Add Image URL</Button>
             </CardContent>
           </Card>
           <Card>
             <CardHeader><CardTitle>Variants</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              {variantFields.map((field, index) => (
+              {fields.map((field, index) => (
                 <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-md relative">
-                  <div className="md:col-span-5 flex justify-end absolute -top-3 -right-3"><Button type="button" variant="destructive" size="icon" className="h-6 w-6" onClick={() => removeVariant(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                  <div className="md:col-span-5 flex justify-end absolute -top-3 -right-3"><Button type="button" variant="destructive" size="icon" className="h-6 w-6" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
                   <div><Label>Name</Label><Input {...register(`variants.${index}.name`)} /></div>
                   <div><Label>Value</Label><Input {...register(`variants.${index}.value`)} /></div>
                   <div><Label>SKU</Label><Input {...register(`variants.${index}.sku`)} /></div>
@@ -160,7 +139,7 @@ export default function VendorProductFormPage() {
                 </div>
               ))}
               {errors.variants && <p className="text-sm text-red-500 mt-1">{errors.variants.message}</p>}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendVariant({ id: crypto.randomUUID(), name: 'Size', value: '', sku: '', priceModifier: 0, stock: 0 })}><PlusCircle className="mr-2 h-4 w-4" />Add Variant</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => append({ name: 'Size', value: '', sku: '', priceModifier: 0, stock: 0 })}><PlusCircle className="mr-2 h-4 w-4" />Add Variant</Button>
             </CardContent>
           </Card>
           <div className="flex justify-end gap-4">
