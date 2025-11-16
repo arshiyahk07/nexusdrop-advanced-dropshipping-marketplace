@@ -19,72 +19,6 @@ const variantSchema = z.object({
   name: z.string().min(1, 'Variant name is required'),
   value: z.string().min(1, 'Variant value is required'),
   sku: z.string().min(1, 'SKU is required'),
-  priceModifier: z.coerce.number({ invalid_type_error: "Price modifier must be a number" }).default(0),
-  stock: z.coerce.number({ invalid_type_error: "Stock must be a number" }).min(0, 'Stock cannot be negative'),
-});
-const productSchema = z.object({
-  name: z.string().min(3, 'Product name is required'),
-  description: z.string().min(10, 'Description is required'),
-  price: z.coerce.number({ invalid_type_error: "Price must be a number" }).min(0.01, 'Price must be positive'),
-  category: z.string().min(1, 'Category is required'),
-  images: z.array(z.object({ value: z.string().url("Must be a valid URL") })).min(1, 'At least one image URL is required'),
-  tags: z.array(z.string()).optional(),
-  variants: z.array(variantSchema).min(1, 'At least one variant is required'),
-});
-type ProductFormValues = z.infer<typeof productSchema>;
-export default function VendorProductFormPage() {
-  const { productId } = useParams<{ productId?: string }>();
-  const navigate = useNavigate();
-  const { isAuthenticated, user, token } = useAuthStore();
-  const [isLoading, setIsLoading] = useState(false);
-  const [isFetching, setIsFetching] = useState(!!productId);
-  const isEditMode = !!productId;
-  const { register, handleSubmit, control, reset, formState: { errors } } = useForm<ProductFormValues>({
-    resolver: zodResolver(productSchema),
-    defaultValues: {
-      name: '',
-      description: '',
-      price: 0,
-      category: '',
-      images: [{ value: '' }],
-      variants: [{ name: 'Size', value: 'One Size', sku: '', priceModifier: 0, stock: 0 }],
-      tags: [],
-    },
-  });
-  const { fields: variantFields, append: appendVariant, remove: removeVariant } = useFieldArray({ control, name: 'variants' });
-  const { fields: imageFields, append: appendImage, remove: removeImage } = useFieldArray({ control, name: 'images' });
-  useEffect(() => {
-    if (!isAuthenticated || user?.role !== 'vendor') {
-      navigate('/login');
-    }
-    if (isEditMode) {
-      const fetchProduct = async () => {
-        try {
-          const product# Phase 10: Implement Audit Logging & Fix Build Errors
-# Correct TypeScript errors in the vendor product form and implement the audit logging system.
-# File 1: Correct TypeScript errors in VendorProductFormPage.tsx
-cat > src/pages/VendorProductFormPage.tsx << 'EOF'
-import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { useForm, useFieldArray, SubmitHandler } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { AppLayout } from '@/components/layout/AppLayout';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { useAuthStore } from '@/hooks/useAuthStore';
-import { api } from '@/lib/api-client';
-import { toast } from 'sonner';
-import type { Product } from '@shared/types';
-import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
-const variantSchema = z.object({
-  id: z.string().uuid().optional(),
-  name: z.string().min(1, 'Variant name is required'),
-  value: z.string().min(1, 'Variant value is required'),
-  sku: z.string().min(1, 'SKU is required'),
   priceModifier: z.preprocess(
     (val) => (val === '' ? 0 : val),
     z.coerce.number({ invalid_type_error: 'Must be a number' }).default(0)
@@ -155,8 +89,8 @@ export default function VendorProductFormPage() {
       const apiPayload = {
         ...data,
         images: data.images.map(img => img.value),
-        rating: 0,
-        reviewCount: 0,
+        rating: 0, // Default value for new/updated product
+        reviewCount: 0, // Default value
       };
       if (isEditMode) {
         await api<Product>(`/api/vendor/products/${productId}`, {

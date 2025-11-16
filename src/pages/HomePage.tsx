@@ -6,15 +6,18 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ChevronDown, ListFilter } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import type { Product } from "@shared/types";
 import { api } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useSearchParams } from "react-router-dom";
 export function HomePage() {
   const isMobile = useIsMobile();
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [searchParams] = useSearchParams();
+  const searchQuery = searchParams.get('q');
   useEffect(() => {
     const fetchProducts = async () => {
       try {
@@ -31,6 +34,16 @@ export function HomePage() {
     };
     fetchProducts();
   }, []);
+  const filteredProducts = useMemo(() => {
+    if (!searchQuery) {
+      return products;
+    }
+    return products.filter(product =>
+      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      product.category.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [products, searchQuery]);
   const FilterComponent = isMobile ? (
     <Sheet>
       <SheetTrigger asChild>
@@ -63,9 +76,12 @@ export function HomePage() {
     if (error) {
       return <div className="text-center text-red-500">{error}</div>;
     }
+    if (filteredProducts.length === 0) {
+      return <div className="text-center text-muted-foreground py-16">No products found.</div>;
+    }
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
-        {products.map(product => (
+        {filteredProducts.map(product => (
           <ProductCard key={product.id} product={product} />
         ))}
       </div>
@@ -75,24 +91,30 @@ export function HomePage() {
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8 md:py-10 lg:py-12">
-          <section className="text-center bg-secondary rounded-lg p-8 md:p-16 mb-12 animate-fade-in">
-            <h1 className="text-4xl md:text-6xl font-display font-bold text-balance leading-tight">
-              Discover Your Next Favorite Thing
-            </h1>
-            <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
-              Explore a curated marketplace of high-quality products from the world's best suppliers.
-            </p>
-            <Button size="lg" className="mt-8 bg-brand-primary hover:bg-brand-secondary text-brand-primary-foreground">
-              Shop New Arrivals
-            </Button>
-          </section>
+          {!searchQuery && (
+            <section className="text-center bg-secondary rounded-lg p-8 md:p-16 mb-12 animate-fade-in">
+              <h1 className="text-4xl md:text-6xl font-display font-bold text-balance leading-tight">
+                Discover Your Next Favorite Thing
+              </h1>
+              <p className="mt-4 text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto text-pretty">
+                Explore a curated marketplace of high-quality products from the world's best suppliers.
+              </p>
+              <Button size="lg" className="mt-8 bg-brand-primary hover:bg-brand-secondary text-brand-primary-foreground">
+                Shop New Arrivals
+              </Button>
+            </section>
+          )}
           <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
             {!isMobile && <div className="lg:w-1/4">{FilterComponent}</div>}
             <div className="flex-1">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
                   {isMobile && FilterComponent}
-                  <h2 className="text-2xl font-bold">All Products</h2>
+                  {searchQuery ? (
+                    <h2 className="text-2xl font-bold">Search Results for "{searchQuery}"</h2>
+                  ) : (
+                    <h2 className="text-2xl font-bold">All Products</h2>
+                  )}
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -109,7 +131,7 @@ export function HomePage() {
                 </DropdownMenu>
               </div>
               <ProductGridContent />
-              {!isLoading && !error && (
+              {!isLoading && !error && !searchQuery && (
                 <div className="mt-12 flex justify-center">
                   <Button variant="outline" size="lg">Load More Products</Button>
                 </div>

@@ -24,6 +24,7 @@ export function AppHeader() {
   const user = useAuthStore(s => s.user);
   const logout = useAuthStore(s => s.actions.logout);
   const navigate = useNavigate();
+  const [searchQuery, setSearchQuery] = useState('');
   const handleLogout = () => {
     logout();
     navigate('/');
@@ -32,6 +33,12 @@ export function AppHeader() {
     if (!name) return 'U';
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   }
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      navigate(`/?q=${encodeURIComponent(searchQuery.trim())}`);
+    }
+  };
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b bg-background">
@@ -52,14 +59,16 @@ export function AppHeader() {
             </Link>
           </nav>
           <div className="flex flex-1 items-center gap-4 justify-end">
-            <div className="relative hidden sm:block w-full max-w-xs">
+            <form onSubmit={handleSearch} className="relative hidden sm:block w-full max-w-xs">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
                 type="search"
                 placeholder="Search products..."
                 className="w-full rounded-lg bg-secondary pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
               />
-            </div>
+            </form>
             <Button variant="ghost" size="icon" className="relative" onClick={() => setIsCartOpen(true)}>
               <ShoppingCart className="h-5 w-5" />
               {itemCount > 0 && (
