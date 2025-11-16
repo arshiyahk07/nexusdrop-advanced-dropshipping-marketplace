@@ -40,6 +40,7 @@ export interface User {
   email: string;
   avatarUrl?: string;
   role: 'buyer' | 'vendor' | 'admin' | 'employee';
+  level?: 1 | 2 | 3; // Support, Operations, Manager
 }
 export interface CartItem {
   productId: string;

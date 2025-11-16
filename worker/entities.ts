@@ -30,8 +30,14 @@ export class UserEntity extends IndexedEntity<StoredUser> {
   static readonly entityName = "user";
   static readonly indexName = "users";
   static readonly initialState: StoredUser = { id: "", name: "", email: "", passwordHash: "", role: 'buyer' };
-  static override keyOf(state: { id: string; email: string; }): string {
-    return state.email.toLowerCase();
+  // The key for a user is their email, which is unique.
+  // This override is compatible with the base class by handling the generic type.
+  static override keyOf<U extends { id: string; email?: string }>(state: U): string {
+    if (state.email) {
+      return state.email.toLowerCase();
+    }
+    // Fallback for operations that might only have the id, though our logic ensures email is used.
+    return state.id;
   }
 }
 export class OrderEntity extends IndexedEntity<Order> {

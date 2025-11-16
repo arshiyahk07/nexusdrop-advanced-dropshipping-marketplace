@@ -46,7 +46,7 @@ export default function VendorProductFormPage() {
       variants: [{ name: 'Size', value: 'One Size', sku: '', priceModifier: 0, stock: 0 }],
     },
   });
-  const { fields, append, remove } = useFieldArray({ control, name: 'variants' });
+  const { fields: variantFields, append: appendVariant, remove: removeVariant } = useFieldArray({ control, name: 'variants' });
   const { fields: imageFields, append: appendImage, remove: removeImage } = useFieldArray({ control, name: 'images' });
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'vendor') {
@@ -128,9 +128,9 @@ export default function VendorProductFormPage() {
           <Card>
             <CardHeader><CardTitle>Variants</CardTitle></CardHeader>
             <CardContent className="space-y-4">
-              {fields.map((field, index) => (
+              {variantFields.map((field, index) => (
                 <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-4 p-4 border rounded-md relative">
-                  <div className="md:col-span-5 flex justify-end absolute -top-3 -right-3"><Button type="button" variant="destructive" size="icon" className="h-6 w-6" onClick={() => remove(index)}><Trash2 className="h-4 w-4" /></Button></div>
+                  <div className="md:col-span-5 flex justify-end absolute -top-3 -right-3"><Button type="button" variant="destructive" size="icon" className="h-6 w-6" onClick={() => removeVariant(index)}><Trash2 className="h-4 w-4" /></Button></div>
                   <div><Label>Name</Label><Input {...register(`variants.${index}.name`)} /></div>
                   <div><Label>Value</Label><Input {...register(`variants.${index}.value`)} /></div>
                   <div><Label>SKU</Label><Input {...register(`variants.${index}.sku`)} /></div>
@@ -139,7 +139,7 @@ export default function VendorProductFormPage() {
                 </div>
               ))}
               {errors.variants && <p className="text-sm text-red-500 mt-1">{errors.variants.message}</p>}
-              <Button type="button" variant="outline" size="sm" onClick={() => append({ id: crypto.randomUUID(), name: 'Size', value: '', sku: '', priceModifier: 0, stock: 0 })}><PlusCircle className="mr-2 h-4 w-4" />Add Variant</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => appendVariant({ id: crypto.randomUUID(), name: 'Size', value: '', sku: '', priceModifier: 0, stock: 0 })}><PlusCircle className="mr-2 h-4 w-4" />Add Variant</Button>
             </CardContent>
           </Card>
           <div className="flex justify-end gap-4">

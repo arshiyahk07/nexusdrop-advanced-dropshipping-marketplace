@@ -41,21 +41,25 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (await user.exists()) {
       return bad(c, 'A user with this email already exists.');
     }
-    let role: User['role'] = 'buyer';
-    if (email.includes('vendor')) role = 'vendor';
-    if (email.includes('admin')) role = 'admin';
-    if (email.includes('support') || email.includes('ops') || email.includes('manager')) role = 'employee';
     const newUser: StoredUser = {
       id: crypto.randomUUID(),
       name,
       email,
       passwordHash: password, // In a real app, HASH the password
-      role,
+      role: 'buyer',
     };
+    if (email.includes('vendor')) newUser.role = 'vendor';
+    if (email.includes('admin')) newUser.role = 'admin';
+    if (email.includes('support') || email.includes('ops') || email.includes('manager')) {
+      newUser.role = 'employee';
+      if (email.includes('support')) newUser.level = 1;
+      else if (email.includes('ops')) newUser.level = 2;
+      else if (email.includes('manager')) newUser.level = 3;
+    }
     await UserEntity.create(c.env, newUser);
     const token = crypto.randomUUID();
     sessions.set(token, userKey);
-    const userResponse: User = { id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role };
+    const { passwordHash, ...userResponse } = newUser;
     return ok(c, { user: userResponse, token });
   });
   app.post('/api/auth/login', async (c) => {
@@ -75,7 +79,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     }
     const token = crypto.randomUUID();
     sessions.set(token, userKey);
-    const userResponse: User = { id: storedUser.id, name: storedUser.name, email: storedUser.email, role: storedUser.role };
+    const { passwordHash, ...userResponse } = storedUser;
     return ok(c, { user: userResponse, token });
   });
   app.get('/api/auth/me', async (c) => {
@@ -93,7 +97,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       return c.json({ success: false, error: 'User not found' }, 404);
     }
     const storedUser = await userEntity.getState();
-    const userResponse: User = { id: storedUser.id, name: storedUser.name, email: storedUser.email, role: storedUser.role };
+    const { passwordHash, ...userResponse } = storedUser;
     return ok(c, { user: userResponse });
   });
   // USER HELPERS
@@ -222,7 +226,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     ).sort((a, b) => b.createdAt - a.createdAt);
     return ok(c, vendorOrders);
   });
-  // ADMIN ROUTES
+  // ADMIN & EMPLOYEE ROUTES
   app.get('/api/admin/users', async (c) => {
     const authHeader = c.req.header('Authorization');
     const token = authHeader?.split(' ')[1];
@@ -231,14 +235,14 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       return c.json({ success: false, error: 'Forbidden' }, 403);
     }
     const { items: allUsers } = await UserEntity.list(c.env);
-    const usersResponse = allUsers.map(({ id, name, email, role }) => ({ id, name, email, role }));
+    const usersResponse = allUsers.map(({ passwordHash, ...user }) => user);
     return ok(c, usersResponse);
   });
   app.get('/api/admin/orders', async (c) => {
     const authHeader = c.req.header('Authorization');
     const token = authHeader?.split(' ')[1];
     const user = await getUserFromToken(c.env, token);
-    if (!user || user.role !== 'admin') {
+    if (!user || (user.role !== 'admin' && user.role !== 'employee')) {
       return c.json({ success: false, error: 'Forbidden' }, 403);
     }
     const { items: allOrders } = await OrderEntity.list(c.env);
