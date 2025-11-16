@@ -144,6 +144,27 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const userOrders = allOrders.filter(order => order.userId === user.id).sort((a, b) => b.createdAt - a.createdAt);
     return ok(c, userOrders);
   });
+  app.patch('/api/orders/:id/status', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    const isAuthorized = user && (user.role === 'admin' || (user.role === 'employee' && user.level && user.level >= 2));
+    if (!isAuthorized) {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { id } = c.req.param();
+    const { status } = await c.req.json<{ status: Order['status'] }>();
+    if (!status) {
+      return bad(c, 'Status is required.');
+    }
+    const orderEntity = new OrderEntity(c.env, id);
+    if (!await orderEntity.exists()) {
+      return notFound(c, 'Order not found');
+    }
+    await orderEntity.patch({ status });
+    const updatedOrder = await orderEntity.getState();
+    return ok(c, updatedOrder);
+  });
   // VENDOR ROUTES
   app.get('/api/vendor/products', async (c) => {
     const authHeader = c.req.header('Authorization');

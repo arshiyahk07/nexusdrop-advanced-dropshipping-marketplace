@@ -27,7 +27,7 @@ const productSchema = z.object({
   description: z.string().min(10, 'Description is required'),
   price: z.coerce.number().min(0.01, 'Price must be positive'),
   category: z.string().min(1, 'Category is required'),
-  images: z.array(z.string().url("Must be a valid URL")).min(1, 'At least one image URL is required'),
+  images: z.array(z.object({ value: z.string().url("Must be a valid URL") })).min(1, 'At least one image URL is required'),
   tags: z.array(z.string()).optional(),
   variants: z.array(variantSchema).min(1, 'At least one variant is required'),
 });
@@ -42,7 +42,7 @@ export default function VendorProductFormPage() {
   const { register, handleSubmit, control, reset, formState: { errors } } = useForm<ProductFormValues>({
     resolver: zodResolver(productSchema),
     defaultValues: {
-      images: [''],
+      images: [{ value: '' }],
       variants: [{ name: 'Size', value: 'One Size', sku: '', priceModifier: 0, stock: 0 }],
     },
   });
@@ -56,7 +56,12 @@ export default function VendorProductFormPage() {
       const fetchProduct = async () => {
         try {
           const product = await api<Product>(`/api/products/${productId}`);
-          reset(product);
+          // Transform string array of images to object array for the form
+          const formValues = {
+            ...product,
+            images: product.images.map(url => ({ value: url })),
+          };
+          reset(formValues);
         } catch (error) {
           toast.error('Failed to fetch product details.');
           navigate('/vendor/dashboard');
@@ -70,18 +75,24 @@ export default function VendorProductFormPage() {
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsLoading(true);
     try {
-      const payload = { ...data, rating: 0, reviewCount: 0 };
+      // Transform image objects back to a flat string array for the API
+      const apiPayload = {
+        ...data,
+        images: data.images.map(img => img.value),
+        rating: 0, // Default values for new/updated products
+        reviewCount: 0,
+      };
       if (isEditMode) {
         await api<Product>(`/api/vendor/products/${productId}`, {
           method: 'PUT',
-          body: JSON.stringify(payload),
+          body: JSON.stringify(apiPayload),
           headers: { Authorization: `Bearer ${token}` },
         });
         toast.success('Product updated successfully!');
       } else {
         await api<Product>('/api/vendor/products', {
           method: 'POST',
-          body: JSON.stringify(payload),
+          body: JSON.stringify(apiPayload),
           headers: { Authorization: `Bearer ${token}` },
         });
         toast.success('Product created successfully!');
@@ -117,12 +128,12 @@ export default function VendorProductFormPage() {
             <CardContent className="space-y-4">
               {imageFields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
-                  <Input {...register(`images.${index}` as const)} placeholder="https://example.com/image.png" />
+                  <Input {...register(`images.${index}.value` as const)} placeholder="https://example.com/image.png" />
                   <Button type="button" variant="ghost" size="icon" onClick={() => removeImage(index)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
               {errors.images && <p className="text-sm text-red-500 mt-1">{errors.images.message || errors.images.root?.message}</p>}
-              <Button type="button" variant="outline" size="sm" onClick={() => appendImage('')}><PlusCircle className="mr-2 h-4 w-4" />Add Image URL</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => appendImage({ value: '' })}><PlusCircle className="mr-2 h-4 w-4" />Add Image URL</Button>
             </CardContent>
           </Card>
           <Card>
