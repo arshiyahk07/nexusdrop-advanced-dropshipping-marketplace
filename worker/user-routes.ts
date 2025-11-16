@@ -41,12 +41,15 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (await user.exists()) {
       return bad(c, 'A user with this email already exists.');
     }
+    let role: User['role'] = 'buyer';
+    if (email.includes('vendor')) role = 'vendor';
+    if (email.includes('admin')) role = 'admin';
     const newUser: StoredUser = {
       id: crypto.randomUUID(),
       name,
       email,
       passwordHash: password, // In a real app, HASH the password
-      role: email.includes('vendor') ? 'vendor' : 'buyer', // Simple role assignment for demo
+      role,
     };
     await UserEntity.create(c.env, newUser);
     const token = crypto.randomUUID();
@@ -217,5 +220,27 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
       order.items.some(item => vendorProductIds.has(item.productId))
     ).sort((a, b) => b.createdAt - a.createdAt);
     return ok(c, vendorOrders);
+  });
+  // ADMIN ROUTES
+  app.get('/api/admin/users', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user || user.role !== 'admin') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { items: allUsers } = await UserEntity.list(c.env);
+    const usersResponse = allUsers.map(({ id, name, email, role }) => ({ id, name, email, role }));
+    return ok(c, usersResponse);
+  });
+  app.get('/api/admin/orders', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user || user.role !== 'admin') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { items: allOrders } = await OrderEntity.list(c.env);
+    return ok(c, allOrders.sort((a, b) => b.createdAt - a.createdAt));
   });
 }

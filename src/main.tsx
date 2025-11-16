@@ -18,6 +18,7 @@ import DashboardPage from '@/pages/DashboardPage';
 import CheckoutPage from '@/pages/CheckoutPage';
 import VendorDashboardPage from '@/pages/VendorDashboardPage';
 import VendorProductFormPage from '@/pages/VendorProductFormPage';
+import AdminDashboardPage from '@/pages/AdminDashboardPage';
 const router = createBrowserRouter([
   {
     path: "/",
@@ -62,6 +63,11 @@ const router = createBrowserRouter([
   {
     path: "/vendor/products/edit/:productId",
     element: <VendorProductFormPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/admin/dashboard",
+    element: <AdminDashboardPage />,
     errorElement: <RouteErrorBoundary />,
   },
 ]);

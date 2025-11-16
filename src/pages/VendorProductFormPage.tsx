@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { AppLayout } from '@/components/layout/AppLayout';
@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 import type { Product } from '@shared/types';
 import { Loader2, PlusCircle, Trash2 } from 'lucide-react';
 const variantSchema = z.object({
-  id: z.string().optional(),
+  id: z.string().uuid().optional(),
   name: z.string().min(1, 'Variant name is required'),
   value: z.string().min(1, 'Variant value is required'),
   sku: z.string().min(1, 'SKU is required'),
@@ -27,7 +27,7 @@ const productSchema = z.object({
   description: z.string().min(10, 'Description is required'),
   price: z.coerce.number().min(0.01, 'Price must be positive'),
   category: z.string().min(1, 'Category is required'),
-  images: z.array(z.string().url()).min(1, 'At least one image URL is required'),
+  images: z.array(z.string().url("Must be a valid URL")).min(1, 'At least one image URL is required'),
   tags: z.array(z.string()).optional(),
   variants: z.array(variantSchema).min(1, 'At least one variant is required'),
 });
@@ -67,7 +67,7 @@ export default function VendorProductFormPage() {
       fetchProduct();
     }
   }, [isAuthenticated, user, navigate, isEditMode, productId, reset]);
-  const onSubmit = async (data: ProductFormValues) => {
+  const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsLoading(true);
     try {
       const payload = { ...data, rating: 0, reviewCount: 0 };
@@ -117,7 +117,7 @@ export default function VendorProductFormPage() {
             <CardContent className="space-y-4">
               {imageFields.map((field, index) => (
                 <div key={field.id} className="flex items-center gap-2">
-                  <Input {...register(`images.${index}`)} placeholder="https://example.com/image.png" />
+                  <Input {...register(`images.${index}` as const)} placeholder="https://example.com/image.png" />
                   <Button type="button" variant="ghost" size="icon" onClick={() => removeImage(index)}><Trash2 className="h-4 w-4" /></Button>
                 </div>
               ))}
@@ -139,7 +139,7 @@ export default function VendorProductFormPage() {
                 </div>
               ))}
               {errors.variants && <p className="text-sm text-red-500 mt-1">{errors.variants.message}</p>}
-              <Button type="button" variant="outline" size="sm" onClick={() => append({ name: 'Size', value: '', sku: '', priceModifier: 0, stock: 0 })}><PlusCircle className="mr-2 h-4 w-4" />Add Variant</Button>
+              <Button type="button" variant="outline" size="sm" onClick={() => append({ id: crypto.randomUUID(), name: 'Size', value: '', sku: '', priceModifier: 0, stock: 0 })}><PlusCircle className="mr-2 h-4 w-4" />Add Variant</Button>
             </CardContent>
           </Card>
           <div className="flex justify-end gap-4">

@@ -1,5 +1,5 @@
 import { Link, useNavigate } from 'react-router-dom';
-import { Package2, Search, ShoppingCart, User, LogOut, LayoutDashboard, Store } from 'lucide-react';
+import { Package2, Search, ShoppingCart, User, LogOut, LayoutDashboard, Store, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -88,6 +88,11 @@ export function AppHeader() {
                   {user.role === 'vendor' && (
                     <DropdownMenuItem asChild>
                       <Link to="/vendor/dashboard"><Store className="mr-2 h-4 w-4" /> Vendor Portal</Link>
+                    </DropdownMenuItem>
+                  )}
+                  {user.role === 'admin' && (
+                    <DropdownMenuItem asChild>
+                      <Link to="/admin/dashboard"><ShieldCheck className="mr-2 h-4 w-4" /> Admin Dashboard</Link>
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={handleLogout}>
