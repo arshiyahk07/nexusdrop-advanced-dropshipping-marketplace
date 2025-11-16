@@ -3,12 +3,34 @@ import { FilterSidebar } from "@/components/marketplace/FilterSidebar";
 import { ProductCard } from "@/components/marketplace/ProductCard";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { MOCK_PRODUCTS } from "@/lib/mock-data";
 import { ChevronDown, ListFilter } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useEffect, useState } from "react";
+import type { Product } from "@shared/types";
+import { api } from "@/lib/api-client";
+import { Skeleton } from "@/components/ui/skeleton";
 export function HomePage() {
   const isMobile = useIsMobile();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        setIsLoading(true);
+        const fetchedProducts = await api<Product[]>('/api/products');
+        setProducts(fetchedProducts);
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch products');
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProducts();
+  }, []);
   const FilterComponent = isMobile ? (
     <Sheet>
       <SheetTrigger asChild>
@@ -24,11 +46,35 @@ export function HomePage() {
   ) : (
     <FilterSidebar />
   );
+  const ProductGridContent = () => {
+    if (isLoading) {
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="space-y-4">
+              <Skeleton className="h-64 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-1/2" />
+            </div>
+          ))}
+        </div>
+      );
+    }
+    if (error) {
+      return <div className="text-center text-red-500">{error}</div>;
+    }
+    return (
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
+        {products.map(product => (
+          <ProductCard key={product.id} product={product} />
+        ))}
+      </div>
+    );
+  };
   return (
     <AppLayout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="py-8 md:py-10 lg:py-12">
-          {/* Hero Section */}
           <section className="text-center bg-secondary rounded-lg p-8 md:p-16 mb-12 animate-fade-in">
             <h1 className="text-4xl md:text-6xl font-display font-bold text-balance leading-tight">
               Discover Your Next Favorite Thing
@@ -41,9 +87,7 @@ export function HomePage() {
             </Button>
           </section>
           <div className="flex flex-col lg:flex-row gap-8 lg:gap-12">
-            {/* Filters */}
             {!isMobile && <div className="lg:w-1/4">{FilterComponent}</div>}
-            {/* Product Grid */}
             <div className="flex-1">
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-4">
@@ -64,14 +108,12 @@ export function HomePage() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-6 md:gap-8">
-                {MOCK_PRODUCTS.map(product => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
-              </div>
-              <div className="mt-12 flex justify-center">
-                <Button variant="outline" size="lg">Load More Products</Button>
-              </div>
+              <ProductGridContent />
+              {!isLoading && !error && (
+                <div className="mt-12 flex justify-center">
+                  <Button variant="outline" size="lg">Load More Products</Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
