@@ -15,6 +15,7 @@ import ProductPage from '@/pages/ProductPage';
 import LoginPage from '@/pages/LoginPage';
 import RegisterPage from '@/pages/RegisterPage';
 import DashboardPage from '@/pages/DashboardPage';
+import CheckoutPage from '@/pages/CheckoutPage';
 const router = createBrowserRouter([
   {
     path: "/",
@@ -39,6 +40,11 @@ const router = createBrowserRouter([
   {
     path: "/dashboard",
     element: <DashboardPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/checkout",
+    element: <CheckoutPage />,
     errorElement: <RouteErrorBoundary />,
   },
 ]);

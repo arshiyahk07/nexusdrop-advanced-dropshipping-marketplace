@@ -1,8 +1,8 @@
 import { Hono } from "hono";
 import type { Env } from './core-utils';
-import { ProductEntity, CategoryEntity, UserEntity, StoredUser } from "./entities";
+import { ProductEntity, CategoryEntity, UserEntity, StoredUser, OrderEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-import type { User } from "@shared/types";
+import type { User, Order, CartItem } from "@shared/types";
 // A simple, insecure session management for demo purposes.
 // In a real app, use signed JWTs.
 const sessions = new Map<string, string>(); // token -> user email
@@ -90,5 +90,49 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const storedUser = await userEntity.getState();
     const userResponse: User = { id: storedUser.id, name: storedUser.name, email: storedUser.email };
     return ok(c, { user: userResponse });
+  });
+  // ORDERS
+  const getUserFromToken = async (env: Env, token: string | undefined): Promise<User | null> => {
+    if (!token) return null;
+    const userKey = sessions.get(token);
+    if (!userKey) return null;
+    const userEntity = new UserEntity(env, userKey);
+    if (!await userEntity.exists()) return null;
+    const { id, name, email } = await userEntity.getState();
+    return { id, name, email };
+  };
+  app.post('/api/orders', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401);
+    }
+    const { items, shippingAddress, total } = await c.req.json<{ items: CartItem[], shippingAddress: Record<string, string>, total: number }>();
+    if (!items || items.length === 0 || !shippingAddress || !total) {
+      return bad(c, 'Missing required order information.');
+    }
+    const newOrder: Order = {
+      id: crypto.randomUUID(),
+      userId: user.id,
+      items,
+      total,
+      shippingAddress,
+      status: 'pending',
+      createdAt: Date.now(),
+    };
+    const createdOrder = await OrderEntity.create(c.env, newOrder);
+    return ok(c, createdOrder);
+  });
+  app.get('/api/orders/me', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user) {
+      return c.json({ success: false, error: 'Unauthorized' }, 401);
+    }
+    const { items: allOrders } = await OrderEntity.list(c.env);
+    const userOrders = allOrders.filter(order => order.userId === user.id).sort((a, b) => b.createdAt - a.createdAt);
+    return ok(c, userOrders);
   });
 }
