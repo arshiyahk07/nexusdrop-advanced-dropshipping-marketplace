@@ -4,7 +4,7 @@ NexusDrop is a complete, production-grade dropshipping marketplace designed to c
 
 The application features a sophisticated product showcase, advanced filtering, a seamless cart and checkout process, and robust user account management. Built on a modern serverless architecture, it leverages Cloudflare Workers for the backend API (Hono) and a single Durable Object for persistence. This approach demonstrates how a complex, stateful application can be built on the edge, offering incredible performance and scalability. The frontend is a masterpiece of modern UI/UX design, using React, Tailwind CSS, and Shadcn/ui to create an experience that is both beautiful and highly functional.
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/arshiyahk07/nexusdrop-advanced-dropshipping-marketplace)
 
 ## Key Features
 
@@ -79,7 +79,7 @@ Wrangler will handle the process of building the frontend, bundling the worker, 
 
 Alternatively, you can deploy directly from your GitHub repository using the button below.
 
-[cloudflarebutton]
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/arshiyahk07/nexusdrop-advanced-dropshipping-marketplace)
 
 ## Project Structure
 
