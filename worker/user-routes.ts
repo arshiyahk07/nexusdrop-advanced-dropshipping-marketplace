@@ -44,6 +44,7 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     let role: User['role'] = 'buyer';
     if (email.includes('vendor')) role = 'vendor';
     if (email.includes('admin')) role = 'admin';
+    if (email.includes('support') || email.includes('ops') || email.includes('manager')) role = 'employee';
     const newUser: StoredUser = {
       id: crypto.randomUUID(),
       name,
@@ -242,5 +243,37 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     }
     const { items: allOrders } = await OrderEntity.list(c.env);
     return ok(c, allOrders.sort((a, b) => b.createdAt - a.createdAt));
+  });
+  app.put('/api/admin/users/:id', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const adminUser = await getUserFromToken(c.env, token);
+    if (!adminUser || adminUser.role !== 'admin') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { id } = c.req.param();
+    const { role } = await c.req.json<{ role: User['role'] }>();
+    if (!role) return bad(c, 'Role is required');
+    const { items: allUsers } = await UserEntity.list(c.env);
+    const targetUserMeta = allUsers.find(u => u.id === id);
+    if (!targetUserMeta) return notFound(c, 'User not found');
+    const userEntity = new UserEntity(c.env, targetUserMeta.email);
+    await userEntity.patch({ role });
+    return ok(c, await userEntity.getState());
+  });
+  app.delete('/api/admin/users/:id', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const adminUser = await getUserFromToken(c.env, token);
+    if (!adminUser || adminUser.role !== 'admin') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { id } = c.req.param();
+    const { items: allUsers } = await UserEntity.list(c.env);
+    const targetUserMeta = allUsers.find(u => u.id === id);
+    if (!targetUserMeta) return notFound(c, 'User not found');
+    if (targetUserMeta.id === adminUser.id) return bad(c, 'Cannot delete yourself');
+    await UserEntity.delete(c.env, targetUserMeta.email);
+    return ok(c, { success: true });
   });
 }

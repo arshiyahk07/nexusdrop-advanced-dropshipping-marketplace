@@ -19,6 +19,7 @@ import CheckoutPage from '@/pages/CheckoutPage';
 import VendorDashboardPage from '@/pages/VendorDashboardPage';
 import VendorProductFormPage from '@/pages/VendorProductFormPage';
 import AdminDashboardPage from '@/pages/AdminDashboardPage';
+import EmployeeDashboardPage from '@/pages/EmployeeDashboardPage';
 const router = createBrowserRouter([
   {
     path: "/",
@@ -68,6 +69,11 @@ const router = createBrowserRouter([
   {
     path: "/admin/dashboard",
     element: <AdminDashboardPage />,
+    errorElement: <RouteErrorBoundary />,
+  },
+  {
+    path: "/employee/dashboard",
+    element: <EmployeeDashboardPage />,
     errorElement: <RouteErrorBoundary />,
   },
 ]);

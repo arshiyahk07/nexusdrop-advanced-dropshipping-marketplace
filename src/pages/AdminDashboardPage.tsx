@@ -11,15 +11,17 @@ import { api } from '@/lib/api-client';
 import type { Order, User } from '@shared/types';
 import { format } from 'date-fns';
 import { MoreHorizontal, Users, ShoppingBag } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 export default function AdminDashboardPage() {
   const { isAuthenticated, user, token } = useAuthStore();
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const ROLES: User['role'][] = ['admin', 'vendor', 'employee', 'buyer'];
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'admin') {
       navigate('/login');
@@ -43,6 +45,31 @@ export default function AdminDashboardPage() {
       fetchData();
     }
   }, [isAuthenticated, navigate, token, user]);
+  const handleRoleChange = async (userId: string, newRole: User['role']) => {
+    try {
+      await api(`/api/admin/users/${userId}`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ role: newRole }),
+      });
+      setUsers(prevUsers => prevUsers.map(u => u.id === userId ? { ...u, role: newRole } : u));
+      toast.success("User role updated successfully.");
+    } catch (error) {
+      toast.error("Failed to update user role.");
+    }
+  };
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await api(`/api/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      setUsers(prevUsers => prevUsers.filter(u => u.id !== userId));
+      toast.success("User deleted successfully.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to delete user.");
+    }
+  };
   if (isLoading) {
     return (
       <AppLayout>
@@ -92,15 +119,42 @@ export default function AdminDashboardPage() {
                           <TableCell>{u.email}</TableCell>
                           <TableCell><Badge variant={u.role === 'admin' ? 'destructive' : 'secondary'} className="capitalize">{u.role}</Badge></TableCell>
                           <TableCell>
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end">
-                                <DropdownMenuItem>Edit User</DropdownMenuItem>
-                                <DropdownMenuItem className="text-red-500">Delete User</DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <AlertDialog>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuSub>
+                                    <DropdownMenuSubTrigger>Change Role</DropdownMenuSubTrigger>
+                                    <DropdownMenuPortal>
+                                      <DropdownMenuSubContent>
+                                        {ROLES.map(role => (
+                                          <DropdownMenuItem key={role} onClick={() => handleRoleChange(u.id, role)} disabled={u.role === role}>
+                                            <span className="capitalize">{role}</span>
+                                          </DropdownMenuItem>
+                                        ))}
+                                      </DropdownMenuSubContent>
+                                    </DropdownMenuPortal>
+                                  </DropdownMenuSub>
+                                  <AlertDialogTrigger asChild>
+                                    <DropdownMenuItem className="text-red-500" onSelect={(e) => e.preventDefault()}>Delete User</DropdownMenuItem>
+                                  </AlertDialogTrigger>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    This action cannot be undone. This will permanently delete the user account for {u.name}.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                  <AlertDialogAction onClick={() => handleDeleteUser(u.id)}>Delete</AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
                           </TableCell>
                         </TableRow>
                       ))}

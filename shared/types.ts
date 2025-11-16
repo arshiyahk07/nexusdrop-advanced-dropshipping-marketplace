@@ -39,7 +39,7 @@ export interface User {
   name: string;
   email: string;
   avatarUrl?: string;
-  role: 'buyer' | 'vendor' | 'admin';
+  role: 'buyer' | 'vendor' | 'admin' | 'employee';
 }
 export interface CartItem {
   productId: string;
