@@ -1,11 +1,19 @@
 import { Hono } from "hono";
 import type { Env } from './core-utils';
-import { ProductEntity, CategoryEntity, UserEntity, StoredUser, OrderEntity } from "./entities";
+import { ProductEntity, CategoryEntity, UserEntity, StoredUser, OrderEntity, AuditLogEntity } from "./entities";
 import { ok, bad, notFound, isStr } from './core-utils';
-import type { User, Order, CartItem, Product } from "@shared/types";
+import type { User, Order, CartItem, Product, AuditLog } from "@shared/types";
 // A simple, insecure session management for demo purposes.
 // In a real app, use signed JWTs.
 const sessions = new Map<string, string>(); // token -> user email
+const logAction = async (env: Env, logData: Omit<AuditLog, 'id' | 'createdAt'>) => {
+  const logEntry: AuditLog = {
+    ...logData,
+    id: crypto.randomUUID(),
+    createdAt: Date.now(),
+  };
+  await AuditLogEntity.create(env, logEntry);
+};
 export function userRoutes(app: Hono<{ Bindings: Env }>) {
   // PRODUCTS
   app.get('/api/products', async (c) => {
@@ -161,8 +169,16 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (!await orderEntity.exists()) {
       return notFound(c, 'Order not found');
     }
+    const oldOrder = await orderEntity.getState();
     await orderEntity.patch({ status });
     const updatedOrder = await orderEntity.getState();
+    await logAction(c.env, {
+      actorId: user.id,
+      actorName: user.name,
+      action: `Updated order status from '${oldOrder.status}' to '${status}'`,
+      targetId: id,
+      targetType: 'order',
+    });
     return ok(c, updatedOrder);
   });
   // VENDOR ROUTES
@@ -283,7 +299,15 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     const targetUserMeta = allUsers.find(u => u.id === id);
     if (!targetUserMeta) return notFound(c, 'User not found');
     const userEntity = new UserEntity(c.env, targetUserMeta.email);
+    const oldUser = await userEntity.getState();
     await userEntity.patch({ role });
+    await logAction(c.env, {
+      actorId: adminUser.id,
+      actorName: adminUser.name,
+      action: `Changed role for ${targetUserMeta.name} from '${oldUser.role}' to '${role}'`,
+      targetId: id,
+      targetType: 'user',
+    });
     return ok(c, await userEntity.getState());
   });
   app.delete('/api/admin/users/:id', async (c) => {
@@ -299,6 +323,23 @@ export function userRoutes(app: Hono<{ Bindings: Env }>) {
     if (!targetUserMeta) return notFound(c, 'User not found');
     if (targetUserMeta.id === adminUser.id) return bad(c, 'Cannot delete yourself');
     await UserEntity.delete(c.env, targetUserMeta.email);
+    await logAction(c.env, {
+      actorId: adminUser.id,
+      actorName: adminUser.name,
+      action: `Deleted user ${targetUserMeta.name} (ID: ${id})`,
+      targetId: id,
+      targetType: 'user',
+    });
     return ok(c, { success: true });
+  });
+  app.get('/api/admin/audit-logs', async (c) => {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.split(' ')[1];
+    const user = await getUserFromToken(c.env, token);
+    if (!user || user.role !== 'admin') {
+      return c.json({ success: false, error: 'Forbidden' }, 403);
+    }
+    const { items: allLogs } = await AuditLogEntity.list(c.env);
+    return ok(c, allLogs.sort((a, b) => b.createdAt - a.createdAt));
   });
 }

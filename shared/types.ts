@@ -56,3 +56,12 @@ export interface Order {
   shippingAddress: Record<string, string>;
   createdAt: number;
 }
+export interface AuditLog {
+  id: string;
+  actorId: string;
+  actorName: string;
+  action: string;
+  targetId: string;
+  targetType: 'user' | 'order' | 'product';
+  createdAt: number;
+}

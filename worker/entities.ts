@@ -1,5 +1,5 @@
 import { IndexedEntity } from "./core-utils";
-import type { Product, Category, User, Order } from "@shared/types";
+import type { Product, Category, User, Order, AuditLog } from "@shared/types";
 import { MOCK_PRODUCTS, MOCK_CATEGORIES } from "../src/lib/mock-data";
 export class ProductEntity extends IndexedEntity<Product> {
   static readonly entityName = "product";
@@ -50,6 +50,19 @@ export class OrderEntity extends IndexedEntity<Order> {
         total: 0,
         status: 'pending',
         shippingAddress: {},
+        createdAt: 0,
+    };
+}
+export class AuditLogEntity extends IndexedEntity<AuditLog> {
+    static readonly entityName = "auditlog";
+    static readonly indexName = "auditlogs";
+    static readonly initialState: AuditLog = {
+        id: "",
+        actorId: "",
+        actorName: "",
+        action: "",
+        targetId: "",
+        targetType: "order",
         createdAt: 0,
     };
 }

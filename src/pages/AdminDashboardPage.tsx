@@ -8,9 +8,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api-client';
-import type { Order, User } from '@shared/types';
+import type { Order, User, AuditLog } from '@shared/types';
 import { format } from 'date-fns';
-import { MoreHorizontal, Users, ShoppingBag, Loader2 } from 'lucide-react';
+import { MoreHorizontal, Users, ShoppingBag, Loader2, BookLock } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -22,6 +22,7 @@ export default function AdminDashboardPage() {
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   useEffect(() => {
@@ -31,12 +32,14 @@ export default function AdminDashboardPage() {
       const fetchData = async () => {
         try {
           setIsLoading(true);
-          const [allUsers, allOrders] = await Promise.all([
+          const [allUsers, allOrders, allLogs] = await Promise.all([
             api<User[]>('/api/admin/users', { headers: { Authorization: `Bearer ${token}` } }),
             api<Order[]>('/api/admin/orders', { headers: { Authorization: `Bearer ${token}` } }),
+            api<AuditLog[]>('/api/admin/audit-logs', { headers: { Authorization: `Bearer ${token}` } }),
           ]);
           setUsers(allUsers);
           setOrders(allOrders);
+          setAuditLogs(allLogs);
         } catch (error) {
           console.error("Failed to fetch admin data", error);
           toast.error("Failed to load admin dashboard. Please try again.");
@@ -114,9 +117,10 @@ export default function AdminDashboardPage() {
             <p className="text-muted-foreground mt-2">Oversee and manage the entire marketplace.</p>
           </header>
           <Tabs defaultValue="users" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 md:w-[400px]">
+            <TabsList className="grid w-full grid-cols-3 md:w-[600px]">
               <TabsTrigger value="users"><Users className="mr-2 h-4 w-4" />Users</TabsTrigger>
               <TabsTrigger value="orders"><ShoppingBag className="mr-2 h-4 w-4" />Orders</TabsTrigger>
+              <TabsTrigger value="logs"><BookLock className="mr-2 h-4 w-4" />Audit Logs</TabsTrigger>
             </TabsList>
             <TabsContent value="users">
               <Card className="mt-4">
@@ -183,6 +187,26 @@ export default function AdminDashboardPage() {
                               </DropdownMenu>
                             )}
                           </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="logs">
+              <Card className="mt-4">
+                <CardHeader><CardTitle>Audit Logs</CardTitle><CardDescription>An immutable record of all significant actions taken on the platform.</CardDescription></CardHeader>
+                <CardContent>
+                  <Table>
+                    <TableHeader><TableRow><TableHead>Actor</TableHead><TableHead>Action</TableHead><TableHead>Target</TableHead><TableHead>Date</TableHead></TableRow></TableHeader>
+                    <TableBody>
+                      {auditLogs.map(log => (
+                        <TableRow key={log.id}>
+                          <TableCell className="font-medium">{log.actorName}<br/><span className="text-xs text-muted-foreground">...{log.actorId.slice(-6)}</span></TableCell>
+                          <TableCell>{log.action}</TableCell>
+                          <TableCell className="capitalize">{log.targetType}: ...{log.targetId.slice(-6)}</TableCell>
+                          <TableCell>{format(new Date(log.createdAt), 'PPP p')}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
