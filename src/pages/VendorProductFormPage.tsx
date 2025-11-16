@@ -44,6 +44,7 @@ export default function VendorProductFormPage() {
     defaultValues: {
       images: [{ value: '' }],
       variants: [{ name: 'Size', value: 'One Size', sku: '', priceModifier: 0, stock: 0 }],
+      tags: [],
     },
   });
   const { fields: variantFields, append: appendVariant, remove: removeVariant } = useFieldArray({ control, name: 'variants' });
@@ -56,10 +57,10 @@ export default function VendorProductFormPage() {
       const fetchProduct = async () => {
         try {
           const product = await api<Product>(`/api/products/${productId}`);
-          // Transform string array of images to object array for the form
-          const formValues = {
+          const formValues: ProductFormValues = {
             ...product,
             images: product.images.map(url => ({ value: url })),
+            tags: product.tags || [],
           };
           reset(formValues);
         } catch (error) {
@@ -75,11 +76,10 @@ export default function VendorProductFormPage() {
   const onSubmit: SubmitHandler<ProductFormValues> = async (data) => {
     setIsLoading(true);
     try {
-      // Transform image objects back to a flat string array for the API
       const apiPayload = {
         ...data,
         images: data.images.map(img => img.value),
-        rating: 0, // Default values for new/updated products
+        rating: 0,
         reviewCount: 0,
       };
       if (isEditMode) {

@@ -10,18 +10,20 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api-client';
 import type { Order, User } from '@shared/types';
 import { format } from 'date-fns';
-import { MoreHorizontal, Users, ShoppingBag } from 'lucide-react';
+import { MoreHorizontal, Users, ShoppingBag, Loader2 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent, DropdownMenuPortal } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+const ROLES: User['role'][] = ['admin', 'vendor', 'employee', 'buyer'];
+const ORDER_STATUSES: Order['status'][] = ['pending', 'paid', 'shipped', 'delivered', 'cancelled'];
 export default function AdminDashboardPage() {
   const { isAuthenticated, user, token } = useAuthStore();
   const navigate = useNavigate();
   const [users, setUsers] = useState<User[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const ROLES: User['role'][] = ['admin', 'vendor', 'employee', 'buyer'];
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
   useEffect(() => {
     if (!isAuthenticated || user?.role !== 'admin') {
       navigate('/login');
@@ -70,6 +72,26 @@ export default function AdminDashboardPage() {
       toast.error(error instanceof Error ? error.message : "Failed to delete user.");
     }
   };
+  const handleStatusUpdate = async (orderId: string, newStatus: Order['status']) => {
+    setUpdatingOrderId(orderId);
+    try {
+      const updatedOrder = await api<Order>(`/api/orders/${orderId}/status`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId ? updatedOrder : order
+        )
+      );
+      toast.success(`Order ...${orderId.slice(-6)} status updated to ${newStatus}.`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update order status.");
+    } finally {
+      setUpdatingOrderId(null);
+    }
+  };
   if (isLoading) {
     return (
       <AppLayout>
@@ -98,20 +120,10 @@ export default function AdminDashboardPage() {
             </TabsList>
             <TabsContent value="users">
               <Card className="mt-4">
-                <CardHeader>
-                  <CardTitle>User Management</CardTitle>
-                  <CardDescription>View and manage all users on the platform.</CardDescription>
-                </CardHeader>
+                <CardHeader><CardTitle>User Management</CardTitle><CardDescription>View and manage all users on the platform.</CardDescription></CardHeader>
                 <CardContent>
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Role</TableHead>
-                        <TableHead><span className="sr-only">Actions</span></TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Role</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
                     <TableBody>
                       {users.map(u => (
                         <TableRow key={u.id}>
@@ -121,38 +133,18 @@ export default function AdminDashboardPage() {
                           <TableCell>
                             <AlertDialog>
                               <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                  <Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button>
-                                </DropdownMenuTrigger>
+                                <DropdownMenuTrigger asChild><Button variant="ghost" className="h-8 w-8 p-0"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
                                 <DropdownMenuContent align="end">
                                   <DropdownMenuSub>
                                     <DropdownMenuSubTrigger>Change Role</DropdownMenuSubTrigger>
-                                    <DropdownMenuPortal>
-                                      <DropdownMenuSubContent>
-                                        {ROLES.map(role => (
-                                          <DropdownMenuItem key={role} onClick={() => handleRoleChange(u.id, role)} disabled={u.role === role}>
-                                            <span className="capitalize">{role}</span>
-                                          </DropdownMenuItem>
-                                        ))}
-                                      </DropdownMenuSubContent>
-                                    </DropdownMenuPortal>
+                                    <DropdownMenuPortal><DropdownMenuSubContent>{ROLES.map(role => (<DropdownMenuItem key={role} onClick={() => handleRoleChange(u.id, role)} disabled={u.role === role}><span className="capitalize">{role}</span></DropdownMenuItem>))}</DropdownMenuSubContent></DropdownMenuPortal>
                                   </DropdownMenuSub>
-                                  <AlertDialogTrigger asChild>
-                                    <DropdownMenuItem className="text-red-500" onSelect={(e) => e.preventDefault()}>Delete User</DropdownMenuItem>
-                                  </AlertDialogTrigger>
+                                  <AlertDialogTrigger asChild><DropdownMenuItem className="text-red-500" onSelect={(e) => e.preventDefault()}>Delete User</DropdownMenuItem></AlertDialogTrigger>
                                 </DropdownMenuContent>
                               </DropdownMenu>
                               <AlertDialogContent>
-                                <AlertDialogHeader>
-                                  <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                                  <AlertDialogDescription>
-                                    This action cannot be undone. This will permanently delete the user account for {u.name}.
-                                  </AlertDialogDescription>
-                                </AlertDialogHeader>
-                                <AlertDialogFooter>
-                                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                  <AlertDialogAction onClick={() => handleDeleteUser(u.id)}>Delete</AlertDialogAction>
-                                </AlertDialogFooter>
+                                <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone. This will permanently delete the user account for {u.name}.</AlertDialogDescription></AlertDialogHeader>
+                                <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={() => handleDeleteUser(u.id)}>Delete</AlertDialogAction></AlertDialogFooter>
                               </AlertDialogContent>
                             </AlertDialog>
                           </TableCell>
@@ -165,21 +157,10 @@ export default function AdminDashboardPage() {
             </TabsContent>
             <TabsContent value="orders">
               <Card className="mt-4">
-                <CardHeader>
-                  <CardTitle>All Orders</CardTitle>
-                  <CardDescription>A complete list of all orders placed on the marketplace.</CardDescription>
-                </CardHeader>
+                <CardHeader><CardTitle>All Orders</CardTitle><CardDescription>A complete list of all orders placed on the marketplace.</CardDescription></CardHeader>
                 <CardContent>
                   <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Order ID</TableHead>
-                        <TableHead>Date</TableHead>
-                        <TableHead>Customer ID</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Total</TableHead>
-                      </TableRow>
-                    </TableHeader>
+                    <TableHeader><TableRow><TableHead>Order ID</TableHead><TableHead>Date</TableHead><TableHead>Customer ID</TableHead><TableHead>Status</TableHead><TableHead>Total</TableHead><TableHead><span className="sr-only">Actions</span></TableHead></TableRow></TableHeader>
                     <TableBody>
                       {orders.map(order => (
                         <TableRow key={order.id}>
@@ -188,6 +169,20 @@ export default function AdminDashboardPage() {
                           <TableCell>...{order.userId.slice(-6)}</TableCell>
                           <TableCell><Badge variant="secondary" className="capitalize">{order.status}</Badge></TableCell>
                           <TableCell>${order.total.toFixed(2)}</TableCell>
+                          <TableCell className="text-right">
+                            {updatingOrderId === order.id ? (<Loader2 className="h-4 w-4 animate-spin ml-auto" />) : (
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild><Button variant="ghost" size="icon"><MoreHorizontal className="h-4 w-4" /></Button></DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  {ORDER_STATUSES.map(status => (
+                                    <DropdownMenuItem key={status} disabled={order.status === status} onClick={() => handleStatusUpdate(order.id, status)} className="capitalize">
+                                      Mark as {status}
+                                    </DropdownMenuItem>
+                                  ))}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            )}
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
