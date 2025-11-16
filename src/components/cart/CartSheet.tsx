@@ -8,14 +8,11 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useCartStore } from "@/hooks/useCartStore";
+import { MOCK_PRODUCTS } from "@/lib/mock-data";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
-import { Trash2, ShoppingBag, Loader2 } from "lucide-react";
-import { useEffect, useState } from "react";
-import type { Product } from "@shared/types";
-import { api } from "@/lib/api-client";
-import { Link } from "react-router-dom";
+import { Trash2, ShoppingBag } from "lucide-react";
 interface CartSheetProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -24,24 +21,8 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
   const items = useCartStore(s => s.items);
   const itemCount = useCartStore(s => s.itemCount);
   const totalPrice = useCartStore(s => s.totalPrice);
-  const isInitialized = useCartStore(s => s.isInitialized);
   const { removeItem, updateQuantity, clearCart } = useCartStore(s => s.actions);
-  const [products, setProducts] = useState<Map<string, Product>>(new Map());
-  const [isLoading, setIsLoading] = useState(true);
-  useEffect(() => {
-    const fetchProducts = async () => {
-      setIsLoading(true);
-      try {
-        const allProducts = await api<Product[]>('/api/products');
-        setProducts(new Map(allProducts.map(p => [p.id, p])));
-      } catch (error) {
-        console.error("Failed to fetch products for cart", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchProducts();
-  }, []);
+  const productsById = new Map(MOCK_PRODUCTS.map(p => [p.id, p]));
   const cartItems = Object.values(items);
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -50,16 +31,12 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
           <SheetTitle>Shopping Cart ({itemCount})</SheetTitle>
         </SheetHeader>
         <Separator />
-        {!isInitialized || isLoading ? (
-          <div className="flex flex-1 items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-          </div>
-        ) : cartItems.length > 0 ? (
+        {cartItems.length > 0 ? (
           <>
             <ScrollArea className="flex-1">
               <div className="flex flex-col gap-6 p-6">
                 {cartItems.map(item => {
-                  const product = products.get(item.productId);
+                  const product = productsById.get(item.productId);
                   if (!product) return null;
                   const variant = product.variants.find(v => v.id === item.variantId);
                   const itemPrice = product.price + (variant?.priceModifier ?? 0);
@@ -96,11 +73,7 @@ export function CartSheet({ open, onOpenChange }: CartSheetProps) {
                 <span>Subtotal</span>
                 <span>${totalPrice.toFixed(2)}</span>
               </div>
-              <SheetClose asChild>
-                <Button asChild className="w-full" size="lg">
-                  <Link to="/checkout">Proceed to Checkout</Link>
-                </Button>
-              </SheetClose>
+              <Button className="w-full" size="lg">Proceed to Checkout</Button>
               <Button variant="outline" className="w-full" onClick={clearCart}>Clear Cart</Button>
             </SheetFooter>
           </>

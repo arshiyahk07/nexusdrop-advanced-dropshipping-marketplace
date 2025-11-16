@@ -3,22 +3,54 @@ export interface ApiResponse<T = unknown> {
   data?: T;
   error?: string;
 }
-
-// Minimal real-world chat example types (shared by frontend and worker)
+export interface ProductVariant {
+  id: string;
+  name: string; // e.g., "Color", "Size"
+  value: string; // e.g., "Red", "Large"
+  sku: string;
+  priceModifier: number; // e.g., +5.00 for a larger size
+  stock: number;
+}
+export interface Product {
+  id: string;
+  name: string;
+  description: string;
+  price: number;
+  images: string[];
+  category: string;
+  vendorId: string;
+  variants: ProductVariant[];
+  tags: string[];
+  rating: number;
+  reviewCount: number;
+}
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+}
+export interface Vendor {
+  id: string;
+  name: string;
+  logoUrl: string;
+}
 export interface User {
   id: string;
   name: string;
+  email: string;
+  avatarUrl?: string;
 }
-
-export interface Chat {
-  id: string;
-  title: string;
+export interface CartItem {
+  productId: string;
+  variantId: string;
+  quantity: number;
 }
-
-export interface ChatMessage {
+export interface Order {
   id: string;
-  chatId: string;
   userId: string;
-  text: string;
-  ts: number; // epoch millis
+  items: CartItem[];
+  total: number;
+  status: 'pending' | 'paid' | 'shipped' | 'delivered' | 'cancelled';
+  shippingAddress: Record<string, string>;
+  createdAt: number;
 }
